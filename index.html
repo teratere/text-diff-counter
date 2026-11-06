@@ -3,654 +3,450 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>テキスト差分チェッカー ＆ 文字数カウンター | Text Diff & Stats</title>
+  <title>AI推敲テキスト差分チェッカー & 文字数カウンター</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <!-- jsdiff Library -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
-
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- jsdiff (CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&display=swap');
-
-    body {
-      font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    .font-mono-code {
-      font-family: 'JetBrains Mono', Consolas, "Courier New", monospace;
-    }
-
-    /* Diff Highlight Styles */
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    body { font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif; }
+    .code-font { font-family: 'JetBrains Mono', monospace; }
+    
+    /* 差分ハイライト装飾 */
     .diff-del {
       background-color: #fee2e2;
       color: #991b1b;
       text-decoration: line-through;
-      padding: 0 2px;
-      border-radius: 2px;
-      margin: 0 1px;
-      display: inline-block;
+      padding: 1px 3px;
+      border-radius: 3px;
     }
     .diff-add {
       background-color: #dcfce7;
       color: #166534;
       font-weight: 600;
-      padding: 0 2px;
-      border-radius: 2px;
-      margin: 0 1px;
-      display: inline-block;
+      padding: 1px 3px;
+      border-radius: 3px;
     }
-    .diff-unchanged {
-      color: #334155;
+    .diff-line-del {
+      background-color: #fef2f2;
+      border-left: 3px solid #ef4444;
+      color: #991b1b;
     }
-
-    /* Side-by-side synchronized scroll styling */
-    .diff-side-box {
-      white-space: pre-wrap;
-      word-break: break-all;
-      line-height: 1.75;
-    }
-    
-    /* Scrollbar */
-    ::-webkit-scrollbar {
-      width: 7px;
-      height: 7px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #f1f5f9;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
+    .diff-line-add {
+      background-color: #f0fdf4;
+      border-left: 3px solid #22c55e;
+      color: #166534;
     }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between selection:bg-violet-500 selection:text-white">
 
-  <!-- Header -->
+  <!-- ヘッダー -->
   <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+    <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <a href="../" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition" title="Apps Hubへ戻る">
-          <i class="fa-solid fa-arrow-left text-sm"></i>
+        <!-- Apps Hubへ戻るリンク -->
+        <a href="../" class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 transition py-1 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200">
+          <i class="fa-solid fa-arrow-left text-[10px]"></i>
+          <span>Apps Hub</span>
         </a>
+        <div class="h-4 w-px bg-slate-200"></div>
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-sm shadow-xs">
+          <div class="w-7 h-7 rounded-lg bg-violet-600 text-white flex items-center justify-center text-xs shadow-xs">
             <i class="fa-solid fa-code-compare"></i>
           </div>
           <div>
-            <h1 class="font-bold text-slate-900 text-base leading-tight">Diff & 文字数チェッカー</h1>
-            <p class="text-[11px] text-slate-400">AIリライト・推敲の変更点比較 ＆ 原稿用紙換算</p>
+            <h1 class="text-sm font-bold text-slate-900 tracking-tight">AI推敲 差分＆文字数チェッカー</h1>
           </div>
         </div>
       </div>
 
-      <!-- Quick Actions -->
-      <div class="flex items-center gap-2 flex-wrap">
-        <button id="btn-load-sample" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition flex items-center gap-1.5">
-          <i class="fa-solid fa-lightbulb"></i> サンプル文章
+      <!-- 右側アクション -->
+      <div class="flex items-center gap-2">
+        <button onclick="loadSample()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg font-medium transition flex items-center gap-1">
+          <i class="fa-solid fa-flask text-violet-500"></i>
+          <span>サンプル</span>
         </button>
-        <button id="btn-swap" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition flex items-center gap-1.5">
-          <i class="fa-solid fa-right-left"></i> 左右入替
-        </button>
-        <button id="btn-clear" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition flex items-center gap-1.5">
-          <i class="fa-regular fa-trash-can"></i> クリア
+        <button onclick="clearAll()" class="text-xs bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-600 px-2.5 py-1.5 rounded-lg font-medium transition flex items-center gap-1">
+          <i class="fa-regular fa-trash-can"></i>
+          <span>クリア</span>
         </button>
       </div>
     </div>
   </header>
 
-  <!-- Main Content -->
-  <main class="max-w-7xl mx-auto w-full px-4 py-5 flex-1 flex flex-col gap-5">
+  <!-- メインコンテンツ -->
+  <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
 
-    <!-- 1. Stats Comparison Bar -->
-    <section class="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-5">
-      <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
-        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-          <i class="fa-solid fa-chart-simple text-indigo-500"></i> 文量・文字数サマリー
-        </span>
-        <span id="diff-char-badge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
-          差分: ±0 文字
-        </span>
-      </div>
-
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <!-- 文字数 -->
-        <div class="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-          <div class="text-[11px] font-medium text-slate-500 mb-1">文字数 (空白除く)</div>
-          <div class="flex items-baseline justify-between">
-            <div>
-              <span class="text-xs text-slate-400">前:</span>
-              <span id="stat-before-chars" class="font-bold text-slate-700 text-sm">0</span>
-            </div>
-            <i class="fa-solid fa-arrow-right text-[10px] text-slate-300"></i>
-            <div>
-              <span class="text-xs text-slate-400">後:</span>
-              <span id="stat-after-chars" class="font-extrabold text-indigo-600 text-base">0</span>
-            </div>
-          </div>
-          <div class="text-[10px] text-slate-400 mt-1 flex justify-between">
-            <span>総文字数:</span>
-            <span><span id="stat-before-total">0</span> → <span id="stat-after-total">0</span></span>
-          </div>
-        </div>
-
-        <!-- 原稿用紙換算 -->
-        <div class="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-          <div class="text-[11px] font-medium text-slate-500 mb-1">400字原稿用紙 換算</div>
-          <div class="flex items-baseline justify-between">
-            <div>
-              <span class="text-xs text-slate-400">前:</span>
-              <span id="stat-before-manuscript" class="font-bold text-slate-700 text-sm">0.0枚</span>
-            </div>
-            <i class="fa-solid fa-arrow-right text-[10px] text-slate-300"></i>
-            <div>
-              <span class="text-xs text-slate-400">後:</span>
-              <span id="stat-after-manuscript" class="font-extrabold text-indigo-600 text-base">0.0枚</span>
-            </div>
-          </div>
-          <div class="text-[10px] text-slate-400 mt-1 text-right">
-            <span id="stat-after-manuscript-detail">約0枚 0行</span>
-          </div>
-        </div>
-
-        <!-- 読了目安時間 (黙読 500字/分) -->
-        <div class="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-          <div class="text-[11px] font-medium text-slate-500 mb-1">読了目安時間 (黙読)</div>
-          <div class="flex items-baseline justify-between">
-            <div>
-              <span class="text-xs text-slate-400">前:</span>
-              <span id="stat-before-reading" class="font-bold text-slate-700 text-sm">0秒</span>
-            </div>
-            <i class="fa-solid fa-arrow-right text-[10px] text-slate-300"></i>
-            <div>
-              <span class="text-xs text-slate-400">後:</span>
-              <span id="stat-after-reading" class="font-extrabold text-indigo-600 text-base">0秒</span>
-            </div>
-          </div>
-          <div class="text-[10px] text-slate-400 mt-1 text-right">
-            <span>分速500字基準</span>
-          </div>
-        </div>
-
-        <!-- スピーチ・音読 (300字/分) & 行数 -->
-        <div class="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-          <div class="text-[11px] font-medium text-slate-500 mb-1">スピーチ・音読時間</div>
-          <div class="flex items-baseline justify-between">
-            <div>
-              <span class="text-xs text-slate-400">前:</span>
-              <span id="stat-before-speech" class="font-bold text-slate-700 text-sm">0秒</span>
-            </div>
-            <i class="fa-solid fa-arrow-right text-[10px] text-slate-300"></i>
-            <div>
-              <span class="text-xs text-slate-400">後:</span>
-              <span id="stat-after-speech" class="font-extrabold text-indigo-600 text-base">0秒</span>
-            </div>
-          </div>
-          <div class="text-[10px] text-slate-400 mt-1 flex justify-between">
-            <span>行数: <span id="stat-after-lines">0</span>行</span>
-            <span>段落: <span id="stat-after-paras">0</span></span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 2. Dual Input Area -->
-    <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <!-- Before Text Pane -->
+    <!-- 1. 入力セクション（2ペイン） -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      
+      <!-- 左：修正前（元文章） -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col overflow-hidden">
-        <div class="bg-slate-100/70 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between">
-          <span class="font-bold text-xs text-slate-700 flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span> 修正前（元テキスト）
+        <div class="px-4 py-2.5 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between text-xs">
+          <span class="font-bold text-slate-700 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-slate-400"></span> 修正前（オリジナル）
           </span>
-          <div class="flex items-center gap-1">
-            <button id="btn-copy-before" class="px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded transition">
-              <i class="fa-regular fa-copy"></i> コピー
-            </button>
-            <button id="btn-clear-before" class="px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-rose-600 hover:bg-slate-200 rounded transition">
-              消去
+          <div class="flex items-center gap-2">
+            <span id="stat-before-chars" class="font-bold text-slate-600">0字</span>
+            <button onclick="copyText('before')" class="text-slate-400 hover:text-slate-700 transition" title="コピー">
+              <i class="fa-regular fa-copy"></i>
             </button>
           </div>
         </div>
-        <textarea id="text-before" class="w-full h-44 sm:h-52 p-4 text-sm text-slate-800 bg-transparent resize-y outline-none font-mono-code leading-relaxed" placeholder="ここへ修正前のテキストを貼り付けてください..."></textarea>
+        <textarea id="text-before" class="w-full h-56 p-4 text-sm code-font focus:outline-none resize-y leading-relaxed text-slate-800 placeholder:text-slate-300" placeholder="元の文章を入力またはペースト..."></textarea>
       </div>
 
-      <!-- After Text Pane -->
+      <!-- 右：修正後（AI推敲後） -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col overflow-hidden">
-        <div class="bg-slate-100/70 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between">
-          <span class="font-bold text-xs text-slate-700 flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> 修正後（Gemini推敲・変更後）
-          </span>
-          <div class="flex items-center gap-1">
-            <button id="btn-copy-after" class="px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded transition">
-              <i class="fa-regular fa-copy"></i> コピー
-            </button>
-            <button id="btn-clear-after" class="px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-rose-600 hover:bg-slate-200 rounded transition">
-              消去
+        <div class="px-4 py-2.5 bg-violet-50/50 border-b border-slate-200 flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-violet-900 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-violet-500"></span> 修正後（Gemini・推敲後）
+            </span>
+            <button onclick="swapTexts()" class="text-[11px] text-slate-500 hover:text-violet-600 px-1.5 py-0.5 rounded hover:bg-violet-100 transition flex items-center gap-1" title="左右を入れ替え">
+              <i class="fa-solid fa-arrow-right-arrow-left"></i>
             </button>
           </div>
-        </div>
-        <textarea id="text-after" class="w-full h-44 sm:h-52 p-4 text-sm text-slate-800 bg-transparent resize-y outline-none font-mono-code leading-relaxed" placeholder="ここへGemini等の推敲・リライト結果を貼り付けてください..."></textarea>
-      </div>
-    </section>
-
-    <!-- 3. Diff View & Options -->
-    <section class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
-      <!-- Toolbar -->
-      <div class="bg-slate-100/80 border-b border-slate-200 p-3 sm:px-4 flex flex-wrap items-center justify-between gap-3">
-        <!-- View Tabs -->
-        <div class="flex items-center gap-1 bg-slate-200/80 p-1 rounded-xl">
-          <button id="tab-unified" class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-white text-indigo-700">
-            <i class="fa-solid fa-bars-staggered"></i> インライン統合 (Unified)
-          </button>
-          <button id="tab-split" class="px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900">
-            <i class="fa-solid fa-table-columns"></i> 左右並列 (Side-by-Side)
-          </button>
-        </div>
-
-        <!-- Mode Select (Char, Word, Line) -->
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-slate-500 font-medium">比較粒度:</span>
-          <div class="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 text-xs">
-            <button id="mode-char" class="px-2.5 py-1 rounded font-semibold bg-indigo-50 text-indigo-700">文字単位</button>
-            <button id="mode-word" class="px-2.5 py-1 rounded font-medium text-slate-600 hover:text-slate-900">単語単位</button>
-            <button id="mode-line" class="px-2.5 py-1 rounded font-medium text-slate-600 hover:text-slate-900">行単位</button>
+          <div class="flex items-center gap-2">
+            <span id="stat-after-chars" class="font-bold text-slate-600">0字</span>
+            <span id="badge-diff-chars" class="font-bold px-1.5 py-0.5 rounded text-[11px] bg-slate-100 text-slate-500">±0字</span>
+            <button onclick="copyText('after')" class="text-slate-400 hover:text-slate-700 transition" title="コピー">
+              <i class="fa-regular fa-copy"></i>
+            </button>
           </div>
         </div>
+        <textarea id="text-after" class="w-full h-56 p-4 text-sm code-font focus:outline-none resize-y leading-relaxed text-slate-800 placeholder:text-slate-300" placeholder="Gemini等のリライト・校正結果を入力またはペースト..."></textarea>
+      </div>
 
-        <!-- Changes Count Tags -->
-        <div class="flex items-center gap-2 text-xs">
-          <span class="px-2 py-1 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-            <i class="fa-solid fa-plus text-[10px]"></i> 追加: <span id="count-added">0</span>
+    </div>
+
+    <!-- 2. 文字数・文量・原稿用紙 統計サマリーカード -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      
+      <!-- 文字数差分 -->
+      <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col justify-between">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wide">文字数増減</span>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="card-diff-chars" class="text-2xl font-extrabold text-slate-800">0</span>
+          <span class="text-xs text-slate-500">文字</span>
+        </div>
+        <span id="card-diff-sub" class="text-[11px] text-slate-400 mt-0.5">前後比: 0%</span>
+      </div>
+
+      <!-- 原稿用紙換算 -->
+      <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col justify-between">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wide">400字詰原稿用紙</span>
+        <div class="mt-1 flex items-baseline gap-1">
+          <span id="card-paper-pages" class="text-2xl font-extrabold text-violet-600">0</span>
+          <span class="text-xs text-slate-600">枚</span>
+          <span id="card-paper-lines" class="text-sm font-bold text-slate-500 ml-1">0行</span>
+        </div>
+        <span id="card-paper-diff" class="text-[11px] text-slate-400 mt-0.5">差分: ±0枚</span>
+      </div>
+
+      <!-- 黙読目安時間 -->
+      <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col justify-between">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wide">黙読目安 (500字/分)</span>
+        <div class="mt-1 flex items-baseline gap-1">
+          <span id="card-read-time" class="text-2xl font-extrabold text-slate-800">0</span>
+          <span class="text-xs text-slate-500">秒</span>
+        </div>
+        <span id="card-read-diff" class="text-[11px] text-slate-400 mt-0.5">修正前: 0秒</span>
+      </div>
+
+      <!-- スピーチ・音読目安時間 -->
+      <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col justify-between">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wide">音読・スピーチ (300字/分)</span>
+        <div class="mt-1 flex items-baseline gap-1">
+          <span id="card-speech-time" class="text-2xl font-extrabold text-slate-800">0</span>
+          <span class="text-xs text-slate-500">秒</span>
+        </div>
+        <span id="card-speech-diff" class="text-[11px] text-slate-400 mt-0.5">修正前: 0秒</span>
+      </div>
+
+    </div>
+
+    <!-- 3. Diff比較コントロール & プレビュー表示 -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      
+      <!-- ツールバー -->
+      <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        
+        <!-- 比較モード（文字/単語/行） -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-xs font-bold text-slate-500 mr-1 flex items-center gap-1">
+            <i class="fa-solid fa-sliders text-violet-500"></i> 単位:
           </span>
-          <span class="px-2 py-1 rounded bg-rose-50 text-rose-700 font-semibold border border-rose-200">
-            <i class="fa-solid fa-minus text-[10px]"></i> 削除: <span id="count-removed">0</span>
+          <div class="bg-white p-0.5 border border-slate-200 rounded-lg flex text-xs font-semibold">
+            <button id="btn-mode-chars" onclick="setDiffGranularity('chars')" class="px-2.5 py-1 rounded-md bg-violet-600 text-white shadow-2xs transition">文字単位</button>
+            <button id="btn-mode-words" onclick="setDiffGranularity('words')" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">単語単位</button>
+            <button id="btn-mode-lines" onclick="setDiffGranularity('lines')" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">行単位</button>
+          </div>
+        </div>
+
+        <!-- 表示ビュー切り替え（インライン / 左右並列） -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-xs font-bold text-slate-500 mr-1">表示:</span>
+          <div class="bg-white p-0.5 border border-slate-200 rounded-lg flex text-xs font-semibold">
+            <button id="btn-view-unified" onclick="setViewMode('unified')" class="px-2.5 py-1 rounded-md bg-violet-600 text-white shadow-2xs transition">インライン統合</button>
+            <button id="btn-view-split" onclick="setViewMode('split')" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">左右並列</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Diff 表示領域 -->
+      <div class="p-5">
+        
+        <!-- 凡例 -->
+        <div class="flex items-center gap-4 text-xs mb-3 pb-2.5 border-b border-slate-100 text-slate-500">
+          <span class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded bg-red-100 border border-red-300"></span> 削除・修正前テキスト
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded bg-green-100 border border-green-300"></span> 追加・推敲後テキスト
           </span>
         </div>
-      </div>
 
-      <!-- Diff Display Container -->
-      <div class="p-4 sm:p-5 flex-1 min-h-[260px] bg-white">
-        <!-- Unified View -->
-        <div id="view-unified-container" class="diff-side-box text-sm font-mono-code leading-relaxed select-text">
-          <p class="text-slate-400 text-center py-10 font-sans">左右のテキストエリアに入力すると、ここに修正差分がリアルタイムでハイライト表示されます。</p>
+        <!-- インライン表示エリア -->
+        <div id="diff-unified-box" class="code-font text-sm leading-relaxed whitespace-pre-wrap break-all min-h-[140px] text-slate-800">
+          <div class="text-slate-300 text-center py-10">テキストを入力するとここに差分がハイライト表示されます</div>
         </div>
 
-        <!-- Side-by-Side View (Split) -->
-        <div id="view-split-container" class="hidden grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/50">
-            <div class="text-xs font-bold text-rose-700 mb-2 border-b border-slate-200 pb-1 flex items-center justify-between">
-              <span><i class="fa-solid fa-minus"></i> 削除・変更前</span>
-              <span id="side-del-count" class="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">0箇所</span>
-            </div>
-            <div id="split-left" class="diff-side-box text-sm font-mono-code leading-relaxed max-h-[460px] overflow-y-auto"></div>
+        <!-- 左右並列表示エリア -->
+        <div id="diff-split-box" class="hidden grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
+            <div class="text-[11px] font-bold text-slate-400 mb-2 uppercase">修正前テキスト</div>
+            <div id="split-left" class="code-font text-sm leading-relaxed whitespace-pre-wrap break-all text-slate-800"></div>
           </div>
-          <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/50">
-            <div class="text-xs font-bold text-emerald-700 mb-2 border-b border-slate-200 pb-1 flex items-center justify-between">
-              <span><i class="fa-solid fa-plus"></i> 追加・変更後</span>
-              <span id="side-add-count" class="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">0箇所</span>
-            </div>
-            <div id="split-right" class="diff-side-box text-sm font-mono-code leading-relaxed max-h-[460px] overflow-y-auto"></div>
+          <div class="border border-slate-200 rounded-xl p-4 bg-violet-50/30">
+            <div class="text-[11px] font-bold text-violet-500 mb-2 uppercase">修正後テキスト</div>
+            <div id="split-right" class="code-font text-sm leading-relaxed whitespace-pre-wrap break-all text-slate-800"></div>
           </div>
         </div>
+
       </div>
-    </section>
+
+    </div>
 
   </main>
 
-  <!-- Notification Toast -->
-  <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg transform translate-y-16 opacity-0 transition duration-200 pointer-events-none flex items-center gap-2 z-50">
-    <i class="fa-solid fa-circle-check text-emerald-400"></i>
-    <span id="toast-message">クリップボードにコピーしました</span>
-  </div>
-
-  <!-- Footer -->
-  <footer class="py-5 text-center text-xs text-slate-400 border-t border-slate-200 bg-white">
-    <p>※ 入力テキストは外部サーバーへ送信されず、すべてブラウザローカル環境で安全に処理されます。</p>
-    <p class="mt-1">© 2026 selfup.net</p>
+  <!-- フッター：ミニ免責表記（常時表示ワンライナー） -->
+  <footer class="py-6 border-t border-slate-200 text-center text-xs text-slate-400">
+    <p class="text-[11px] text-slate-400 text-center">
+      ※個人開発プロトタイプにつき無保証・自己責任にてご利用ください（データは端末内完結・サポート対象外）
+    </p>
+    <p class="mt-1">&copy; 2026 selfup.net</p>
   </footer>
 
   <script>
-    // State
-    let diffMode = 'char'; // 'char' | 'word' | 'line'
-    let viewType = 'unified'; // 'unified' | 'split'
+    // 状態管理
+    let granularity = 'chars'; // 'chars' | 'words' | 'lines'
+    let viewMode = 'unified';    // 'unified' | 'split'
 
-    const sampleBefore = `こんにちは。本日はGeminiの使い方について説明します。
-AIに文章を書いてもらうと、とても便利です。
-しかし、出力された文章が長すぎたり、表現が不自然だったりすることがたまにあります。
-そのため、修正前と修正後の差分をしっかり確認することが重要になってきます。
-文字数も増減を把握しておきましょう。`;
+    const beforeEl = document.getElementById('text-before');
+    const afterEl = document.getElementById('text-after');
 
-    const sampleAfter = `こんにちは！本日はGeminiの効果的な活用法について解説します。
-AIを活用して原稿を執筆・推敲させると、作業効率が大幅に向上します。
-ただ、生成された文章の文量が多すぎたり、言い回しが少し不自然に感じる場面も散見されます。
-だからこそ、推敲前とリライト後のテキスト差分を正確にチェックすることが極めて重要です。
-文字数や原稿用紙換算の変化もリアルタイムで把握しましょう。`;
+    function update() {
+      const textA = beforeEl.value;
+      const textB = afterEl.value;
 
-    // DOM Elements
-    const textBefore = document.getElementById('text-before');
-    const textAfter = document.getElementById('text-after');
+      // 1. 統計の計算
+      const lenA = textA.length;
+      const lenB = textB.length;
+      const diffLen = lenB - lenA;
 
-    const viewUnified = document.getElementById('view-unified-container');
-    const viewSplitContainer = document.getElementById('view-split-container');
-    const splitLeft = document.getElementById('split-left');
-    const splitRight = document.getElementById('split-right');
+      document.getElementById('stat-before-chars').textContent = `${lenA.toLocaleString()}字`;
+      document.getElementById('stat-after-chars').textContent = `${lenB.toLocaleString()}字`;
 
-    const tabUnified = document.getElementById('tab-unified');
-    const tabSplit = document.getElementById('tab-split');
-
-    const modeChar = document.getElementById('mode-char');
-    const modeWord = document.getElementById('mode-word');
-    const modeLine = document.getElementById('mode-line');
-
-    const countAdded = document.getElementById('count-added');
-    const countRemoved = document.getElementById('count-removed');
-    const diffCharBadge = document.getElementById('diff-char-badge');
-
-    // Toast function
-    function showToast(msg) {
-      const toast = document.getElementById('toast');
-      const text = document.getElementById('toast-message');
-      text.textContent = msg;
-      toast.classList.remove('translate-y-16', 'opacity-0');
-      toast.classList.add('translate-y-0', 'opacity-100');
-      setTimeout(() => {
-        toast.classList.add('translate-y-16', 'opacity-0');
-        toast.classList.remove('translate-y-0', 'opacity-100');
-      }, 2000);
-    }
-
-    // Copy to clipboard fallback safe
-    function copyText(str) {
-      if (!str) return;
-      const el = document.createElement('textarea');
-      el.value = str;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-      showToast('テキストをクリップボードにコピーしました');
-    }
-
-    // Calculate Text Statistics
-    function calculateStats(text) {
-      const totalChars = text.length;
-      // 空白・改行除外文字数
-      const charsNoSpace = text.replace(/\s/g, '').length;
-      // 行数
-      const lines = text === '' ? 0 : text.split('\n').length;
-      // 段落数 (空行で区切られたブロック)
-      const paragraphs = text.trim() === '' ? 0 : text.trim().split(/\n\s*\n/).length;
-
-      // 400字原稿用紙換算 (通常は空白を含む文字数基準、または1行20字換算)
-      const manuscriptSheets = (charsNoSpace / 400);
-      const fullSheets = Math.floor(charsNoSpace / 400);
-      const remainingChars = charsNoSpace % 400;
-      const remainingLines = Math.ceil(remainingChars / 20);
-
-      // 読了時間計算 (分速500字)
-      const readingMinutes = charsNoSpace / 500;
-      const readingSeconds = Math.round(readingMinutes * 60);
-
-      // スピーチ・音読時間 (分速300字)
-      const speechMinutes = charsNoSpace / 300;
-      const speechSeconds = Math.round(speechMinutes * 60);
-
-      return {
-        totalChars,
-        charsNoSpace,
-        lines,
-        paragraphs,
-        manuscriptSheets: manuscriptSheets.toFixed(1),
-        manuscriptDetail: `${fullSheets}枚 ${remainingLines}行`,
-        readingTime: formatTime(readingSeconds),
-        speechTime: formatTime(speechSeconds)
-      };
-    }
-
-    function formatTime(seconds) {
-      if (seconds < 60) {
-        return `${seconds}秒`;
-      }
-      const m = Math.floor(seconds / 60);
-      const s = seconds % 60;
-      return s > 0 ? `${m}分${s}秒` : `${m}分`;
-    }
-
-    // Update Statistics Bar
-    function updateStats() {
-      const before = calculateStats(textBefore.value);
-      const after = calculateStats(textAfter.value);
-
-      // 文字数
-      document.getElementById('stat-before-chars').textContent = before.charsNoSpace.toLocaleString();
-      document.getElementById('stat-after-chars').textContent = after.charsNoSpace.toLocaleString();
-      document.getElementById('stat-before-total').textContent = before.totalChars.toLocaleString();
-      document.getElementById('stat-after-total').textContent = after.totalChars.toLocaleString();
-
-      // 差分計算
-      const charDiff = after.charsNoSpace - before.charsNoSpace;
-      const sign = charDiff > 0 ? '+' : '';
-      diffCharBadge.textContent = `文字数差: ${sign}${charDiff.toLocaleString()} 字`;
-      if (charDiff > 0) {
-        diffCharBadge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800';
-      } else if (charDiff < 0) {
-        diffCharBadge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800';
+      // 差分バッジ
+      const badgeDiff = document.getElementById('badge-diff-chars');
+      if (diffLen > 0) {
+        badgeDiff.textContent = `+${diffLen.toLocaleString()}字`;
+        badgeDiff.className = 'font-bold px-1.5 py-0.5 rounded text-[11px] bg-green-100 text-green-700';
+      } else if (diffLen < 0) {
+        badgeDiff.textContent = `${diffLen.toLocaleString()}字`;
+        badgeDiff.className = 'font-bold px-1.5 py-0.5 rounded text-[11px] bg-red-100 text-red-700';
       } else {
-        diffCharBadge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600';
+        badgeDiff.textContent = `±0字`;
+        badgeDiff.className = 'font-bold px-1.5 py-0.5 rounded text-[11px] bg-slate-100 text-slate-500';
       }
 
-      // 原稿用紙換算
-      document.getElementById('stat-before-manuscript').textContent = `${before.manuscriptSheets}枚`;
-      document.getElementById('stat-after-manuscript').textContent = `${after.manuscriptSheets}枚`;
-      document.getElementById('stat-after-manuscript-detail').textContent = `約 ${after.manuscriptDetail}`;
+      // カード：文字数増減
+      const cardDiffChars = document.getElementById('card-diff-chars');
+      cardDiffChars.textContent = (diffLen > 0 ? `+` : ``) + diffLen.toLocaleString();
+      cardDiffChars.className = diffLen > 0 ? 'text-2xl font-extrabold text-green-600' : (diffLen < 0 ? 'text-2xl font-extrabold text-red-600' : 'text-2xl font-extrabold text-slate-800');
+      
+      const pct = lenA === 0 ? (lenB > 0 ? '+100%' : '0%') : ((diffLen / lenA) * 100).toFixed(1) + '%';
+      document.getElementById('card-diff-sub').textContent = `前後比: ${pct}`;
 
-      // 読了時間
-      document.getElementById('stat-before-reading').textContent = before.readingTime;
-      document.getElementById('stat-after-reading').textContent = after.readingTime;
+      // カード：原稿用紙（400字詰め、20字×20行基準）
+      const pagesB = Math.floor(lenB / 400);
+      const remainB = lenB % 400;
+      const linesB = Math.ceil(remainB / 20);
+      document.getElementById('card-paper-pages').textContent = pagesB;
+      document.getElementById('card-paper-lines').textContent = `${linesB}行`;
 
-      // スピーチ時間 & 行・段落
-      document.getElementById('stat-before-speech').textContent = before.speechTime;
-      document.getElementById('stat-after-speech').textContent = after.speechTime;
-      document.getElementById('stat-after-lines').textContent = after.lines;
-      document.getElementById('stat-after-paras').textContent = after.paragraphs;
+      const pagesA = Math.floor(lenA / 400);
+      const remainA = lenA % 400;
+      const linesA = Math.ceil(remainA / 20);
+      const pageDiff = pagesB - pagesA;
+      document.getElementById('card-paper-diff').textContent = `差分: ${pageDiff >= 0 ? '+' : ''}${pageDiff}枚 (${lenA > 0 ? pagesA + '枚' + linesA + '行' : '0枚'})`;
+
+      // カード：読了時間 (黙読500字/分 = 約8.3字/秒, 音読300字/分 = 5字/秒)
+      const readSecB = Math.round(lenB / (500 / 60));
+      const readSecA = Math.round(lenA / (500 / 60));
+      document.getElementById('card-read-time').textContent = formatSeconds(readSecB);
+      document.getElementById('card-read-diff').textContent = `修正前: ${formatSeconds(readSecA)}`;
+
+      const speechSecB = Math.round(lenB / (300 / 60));
+      const speechSecA = Math.round(lenA / (300 / 60));
+      document.getElementById('card-speech-time').textContent = formatSeconds(speechSecB);
+      document.getElementById('card-speech-diff').textContent = `修正前: ${formatSeconds(speechSecA)}`;
+
+      // 2. Diff計算＆描画
+      renderDiff(textA, textB);
     }
 
-    // Escape HTML to prevent injection
-    function escapeHtml(str) {
-      if (!str) return '';
-      return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+    function formatSeconds(sec) {
+      if (sec < 60) return `${sec}秒`;
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}分${s > 0 ? s + '秒' : ''}`;
     }
 
-    // Compute and Render Diff
-    function updateDiff() {
-      const vBefore = textBefore.value;
-      const vAfter = textAfter.value;
+    function renderDiff(textA, textB) {
+      const unifiedBox = document.getElementById('diff-unified-box');
+      const splitLeft = document.getElementById('split-left');
+      const splitRight = document.getElementById('split-right');
 
-      if (!vBefore && !vAfter) {
-        viewUnified.innerHTML = `<p class="text-slate-400 text-center py-10 font-sans">テキストを入力すると、ここにリアルタイムで差分が表示されます。</p>`;
-        splitLeft.innerHTML = `<p class="text-slate-400 text-center py-8 font-sans">変更前なし</p>`;
-        splitRight.innerHTML = `<p class="text-slate-400 text-center py-8 font-sans">変更後なし</p>`;
-        countAdded.textContent = '0';
-        countRemoved.textContent = '0';
+      if (!textA && !textB) {
+        unifiedBox.innerHTML = '<div class="text-slate-300 text-center py-10">テキストを入力するとここに差分がハイライト表示されます</div>';
+        splitLeft.innerHTML = '';
+        splitRight.innerHTML = '';
         return;
       }
 
       let diff = [];
-      if (typeof Diff !== 'undefined') {
-        if (diffMode === 'char') {
-          diff = Diff.diffChars(vBefore, vAfter);
-        } else if (diffMode === 'word') {
-          diff = Diff.diffWords(vBefore, vAfter);
-        } else if (diffMode === 'line') {
-          diff = Diff.diffLines(vBefore, vAfter);
-        }
-      } else {
-        // Fallback simple line diff
-        diff = [{ value: vAfter }];
+      if (granularity === 'chars') {
+        diff = Diff.diffChars(textA, textB);
+      } else if (granularity === 'words') {
+        diff = Diff.diffWords(textA, textB);
+      } else if (granularity === 'lines') {
+        diff = Diff.diffLines(textA, textB);
       }
 
-      let addedCount = 0;
-      let removedCount = 0;
-      let unifiedHtml = '';
+      // インライン統合描画
+      const fragment = document.createDocumentFragment();
       let leftHtml = '';
       let rightHtml = '';
 
       diff.forEach(part => {
-        const valEscaped = escapeHtml(part.value);
+        const span = document.createElement('span');
+        const escapedValue = escapeHtml(part.value);
+
         if (part.added) {
-          addedCount += part.value.replace(/\s/g, '').length;
-          unifiedHtml += `<span class="diff-add">${valEscaped}</span>`;
-          rightHtml += `<span class="diff-add">${valEscaped}</span>`;
+          span.className = granularity === 'lines' ? 'diff-line-add block' : 'diff-add';
+          span.textContent = part.value;
+          rightHtml += `<span class="${granularity === 'lines' ? 'diff-line-add block' : 'diff-add'}">${escapedValue}</span>`;
         } else if (part.removed) {
-          removedCount += part.value.replace(/\s/g, '').length;
-          unifiedHtml += `<span class="diff-del">${valEscaped}</span>`;
-          leftHtml += `<span class="diff-del">${valEscaped}</span>`;
+          span.className = granularity === 'lines' ? 'diff-line-del block' : 'diff-del';
+          span.textContent = part.value;
+          leftHtml += `<span class="${granularity === 'lines' ? 'diff-line-del block' : 'diff-del'}">${escapedValue}</span>`;
         } else {
-          unifiedHtml += `<span class="diff-unchanged">${valEscaped}</span>`;
-          leftHtml += `<span class="diff-unchanged">${valEscaped}</span>`;
-          rightHtml += `<span class="diff-unchanged">${valEscaped}</span>`;
+          span.textContent = part.value;
+          leftHtml += escapedValue;
+          rightHtml += escapedValue;
+        }
+        fragment.appendChild(span);
+      });
+
+      unifiedBox.innerHTML = '';
+      unifiedBox.appendChild(fragment);
+      splitLeft.innerHTML = leftHtml || '<span class="text-slate-300">（なし）</span>';
+      splitRight.innerHTML = rightHtml || '<span class="text-slate-300">（なし）</span>';
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    function setDiffGranularity(mode) {
+      granularity = mode;
+      ['chars', 'words', 'lines'].forEach(m => {
+        const btn = document.getElementById(`btn-mode-${m}`);
+        if (m === mode) {
+          btn.className = 'px-2.5 py-1 rounded-md bg-violet-600 text-white shadow-2xs transition';
+        } else {
+          btn.className = 'px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition';
         }
       });
-
-      countAdded.textContent = `+${addedCount.toLocaleString()}字`;
-      countRemoved.textContent = `-${removedCount.toLocaleString()}字`;
-      document.getElementById('side-del-count').textContent = `-${removedCount.toLocaleString()}字`;
-      document.getElementById('side-add-count').textContent = `+${addedCount.toLocaleString()}字`;
-
-      viewUnified.innerHTML = unifiedHtml || '<span class="text-slate-400">差分なし</span>';
-      splitLeft.innerHTML = leftHtml || '<span class="text-slate-400">変更箇所なし</span>';
-      splitRight.innerHTML = rightHtml || '<span class="text-slate-400">変更箇所なし</span>';
+      update();
     }
 
-    function refreshAll() {
-      updateStats();
-      updateDiff();
+    function setViewMode(mode) {
+      viewMode = mode;
+      const unifiedBox = document.getElementById('diff-unified-box');
+      const splitBox = document.getElementById('diff-split-box');
+      const btnUnified = document.getElementById('btn-view-unified');
+      const btnSplit = document.getElementById('btn-view-split');
+
+      if (mode === 'unified') {
+        unifiedBox.classList.remove('hidden');
+        splitBox.classList.add('hidden');
+        splitBox.classList.remove('grid');
+        btnUnified.className = 'px-2.5 py-1 rounded-md bg-violet-600 text-white shadow-2xs transition';
+        btnSplit.className = 'px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition';
+      } else {
+        unifiedBox.classList.add('hidden');
+        splitBox.classList.remove('hidden');
+        splitBox.classList.add('grid');
+        btnSplit.className = 'px-2.5 py-1 rounded-md bg-violet-600 text-white shadow-2xs transition';
+        btnUnified.className = 'px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition';
+      }
     }
 
-    // Event Listeners for inputs
-    textBefore.addEventListener('input', refreshAll);
-    textAfter.addEventListener('input', refreshAll);
+    function swapTexts() {
+      const tmp = beforeEl.value;
+      beforeEl.value = afterEl.value;
+      afterEl.value = tmp;
+      update();
+    }
 
-    // Synchronize scrolling for split view
-    let isSyncingLeft = false;
-    let isSyncingRight = false;
-    splitLeft.addEventListener('scroll', () => {
-      if (!isSyncingLeft) {
-        isSyncingRight = true;
-        splitRight.scrollTop = splitLeft.scrollTop;
+    function clearAll() {
+      if (confirm('入力内容をクリアしますか？')) {
+        beforeEl.value = '';
+        afterEl.value = '';
+        update();
       }
-      isSyncingLeft = false;
-    });
-    splitRight.addEventListener('scroll', () => {
-      if (!isSyncingRight) {
-        isSyncingLeft = true;
-        splitLeft.scrollTop = splitRight.scrollTop;
-      }
-      isSyncingRight = false;
-    });
+    }
 
-    // View Switching (Unified vs Side-by-Side)
-    tabUnified.addEventListener('click', () => {
-      viewType = 'unified';
-      tabUnified.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-white text-indigo-700';
-      tabSplit.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900';
-      viewUnified.classList.remove('hidden');
-      viewSplitContainer.classList.add('hidden');
-      viewSplitContainer.classList.remove('grid');
-    });
-
-    tabSplit.addEventListener('click', () => {
-      viewType = 'split';
-      tabSplit.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-white text-indigo-700';
-      tabUnified.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900';
-      viewUnified.classList.add('hidden');
-      viewSplitContainer.classList.remove('hidden');
-      viewSplitContainer.classList.add('grid');
-    });
-
-    // Mode Switching (Char vs Word vs Line)
-    function setActiveModeButton(activeBtn) {
-      [modeChar, modeWord, modeLine].forEach(btn => {
-        btn.className = 'px-2.5 py-1 rounded font-medium text-slate-600 hover:text-slate-900';
+    function copyText(type) {
+      const val = type === 'before' ? beforeEl.value : afterEl.value;
+      if (!val) return;
+      navigator.clipboard.writeText(val).then(() => {
+        alert(type === 'before' ? '修正前の文章をコピーしました。' : '推敲後の文章をコピーしました。');
       });
-      activeBtn.className = 'px-2.5 py-1 rounded font-semibold bg-indigo-50 text-indigo-700';
     }
 
-    modeChar.addEventListener('click', () => {
-      diffMode = 'char';
-      setActiveModeButton(modeChar);
-      updateDiff();
-    });
+    function loadSample() {
+      beforeEl.value = "先日はお忙しい中お時間をいただきありがとうございました。\n\nご相談させていただいた新規開発案件のスケジュールに関しまして、社内で検討しました結果、来月の中旬を目処に開発作業へ着手する運びとなりました。\n\n詳細な仕様書および見積書につきましては、来週の金曜日までに送付いたしますので、何卒よろしくお願い申し上げます。";
+      afterEl.value = "先日はお忙しいところ貴重なお時間を頂戴し、誠にありがとうございました。\n\nご相談いたしました新規プロジェクトの進行スケジュールにつきまして、社内協議を行いました結果、来月中旬を目処に開発へ着手する方針となりました。\n\n詳細な仕様書および正式なお見積もり書は、来週金曜日（17時）までにお送りいたします。引き続きどうぞよろしくお願い申し上げます。";
+      update();
+    }
 
-    modeWord.addEventListener('click', () => {
-      diffMode = 'word';
-      setActiveModeButton(modeWord);
-      updateDiff();
-    });
+    // イベントリスナー
+    beforeEl.addEventListener('input', update);
+    afterEl.addEventListener('input', update);
 
-    modeLine.addEventListener('click', () => {
-      diffMode = 'line';
-      setActiveModeButton(modeLine);
-      updateDiff();
-    });
-
-    // Toolbar Actions
-    document.getElementById('btn-load-sample').addEventListener('click', () => {
-      textBefore.value = sampleBefore;
-      textAfter.value = sampleAfter;
-      refreshAll();
-      showToast('サンプル文章を読み込みました');
-    });
-
-    document.getElementById('btn-swap').addEventListener('click', () => {
-      const temp = textBefore.value;
-      textBefore.value = textAfter.value;
-      textAfter.value = temp;
-      refreshAll();
-      showToast('修正前と修正後を入れ替えました');
-    });
-
-    document.getElementById('btn-clear').addEventListener('click', () => {
-      textBefore.value = '';
-      textAfter.value = '';
-      refreshAll();
-      showToast('両方のテキストをクリアしました');
-    });
-
-    document.getElementById('btn-copy-before').addEventListener('click', () => {
-      copyText(textBefore.value);
-    });
-
-    document.getElementById('btn-clear-before').addEventListener('click', () => {
-      textBefore.value = '';
-      refreshAll();
-    });
-
-    document.getElementById('btn-copy-after').addEventListener('click', () => {
-      copyText(textAfter.value);
-    });
-
-    document.getElementById('btn-clear-after').addEventListener('click', () => {
-      textAfter.value = '';
-      refreshAll();
-    });
-
-    // Initial Load
-    window.addEventListener('DOMContentLoaded', () => {
-      // 初期値としてサンプルを入れておくと直感的にわかりやすい
-      textBefore.value = sampleBefore;
-      textAfter.value = sampleAfter;
-      refreshAll();
-    });
+    // 初期実行
+    window.addEventListener('DOMContentLoaded', update);
   </script>
 </body>
 </html>
